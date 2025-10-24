@@ -77,7 +77,16 @@ class SimonCoverEntity(CoverEntity):
         self.device = device
         self._attr_name = device.name
         self._attr_unique_id = f"{DOMAIN}_{device_id}"
-        self._attr_device_class = CoverDeviceClass.BLIND
+        
+        # Determine device class based on actual device type
+        device_type = device.get_device_type() or ""
+        if "shutter" in device_type.lower():
+            self._attr_device_class = CoverDeviceClass.SHUTTER
+        elif "blind" in device_type.lower():
+            self._attr_device_class = CoverDeviceClass.BLIND
+        else:
+            # Default fallback
+            self._attr_device_class = CoverDeviceClass.SHUTTER
         
         # State tracking for movement
         self._is_opening = False

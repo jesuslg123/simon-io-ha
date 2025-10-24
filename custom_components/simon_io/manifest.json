@@ -1,0 +1,14 @@
+{
+  "domain": "simon_io",
+  "name": "Simon iO",
+  "codeowners": ["@jesus"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/jesuslg123/simon-io-ha",
+  "integration_type": "hub",
+  "iot_class": "cloud_polling",
+  "requirements": [
+    "aiosimon-io>=0.1.0"
+  ],
+  "version": "1.0.0"
+}

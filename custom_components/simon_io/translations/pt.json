@@ -1,0 +1,73 @@
+{
+  
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configuração do Simon iO",
+        "description": "Introduza as suas credenciais do Simon iO para ligar aos seus dispositivos domésticos inteligentes.",
+        "data": {
+          "client_id": "ID do cliente",
+          "client_secret": "Segredo do cliente",
+          "username": "Nome de utilizador",
+          "password": "Palavra-passe"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Reautenticação do Simon iO",
+        "description": "As suas credenciais do Simon iO expiraram. Por favor, introduza a palavra‑passe para reautenticar.",
+        "data": {
+          "password": "Palavra-passe"
+        }
+      },
+      "manual_reauth": {
+        "title": "Reautenticação manual do Simon iO",
+        "description": "Introduza as suas credenciais do Simon iO para atualizar a integração.",
+        "data": {
+          "client_id": "ID do cliente",
+          "client_secret": "Segredo do cliente",
+          "username": "Nome de utilizador",
+          "password": "Palavra-passe"
+        }
+      },
+      "password_reauth": {
+        "title": "Atualização da palavra‑passe",
+        "description": "Introduza a nova palavra‑passe para atualizar a integração.",
+        "data": {
+          "password": "Palavra-passe"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Não foi possível ligar à API do Simon iO",
+      "invalid_auth": "Credenciais de autenticação inválidas",
+      "unknown": "Erro desconhecido"
+    },
+    "abort": {
+      "already_configured": "O Simon iO já está configurado",
+      "reauth_successful": "Reautenticação efetuada com sucesso"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opções do Simon iO",
+        "description": "Configure as opções da integração do Simon iO.",
+        "data": {
+          "reauth": "Reautenticar com novas credenciais",
+          "password_reauth": "Atualizar apenas a palavra‑passe"
+        }
+      }
+    }
+  },
+  "entity": {
+    "cover": {
+      "name": "Estore Simon iO"
+    },
+    "light": {
+      "name": "Luz Simon iO"
+    },
+    "switch": {
+      "name": "Interruptor Simon iO"
+    }
+  }
+}

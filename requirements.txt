@@ -1,0 +1,18 @@
+# Simon iO Home Assistant Integration Requirements
+# Core dependencies for the integration
+
+# Simon iO API client library
+aiosimon-io>=0.1.0
+
+# HTTP client (already included with Home Assistant)
+aiohttp>=3.8.0
+
+# Development dependencies (optional)
+# Uncomment these if you want to develop/test the integration locally
+
+# pytest>=7.0.0
+# pytest-asyncio>=0.21.0
+# pytest-cov>=4.0.0
+# black>=22.0.0
+# flake8>=5.0.0
+# mypy>=1.0.0

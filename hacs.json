@@ -1,0 +1,8 @@
+{
+  "name": "Simon iO",
+  "content_in_root": false,
+  "filename": "simon_io",
+  "country": ["ES", "FR", "IT", "PT"],
+  "homeassistant": "2023.1.0",
+  "render_readme": true
+}

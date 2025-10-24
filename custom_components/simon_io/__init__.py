@@ -50,24 +50,31 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Update data via library."""
+        _LOGGER.info("Starting data update")
         try:
             # Ensure we have a valid session and auth client
             await self._ensure_auth_client()
+            _LOGGER.info("Auth client ensured, proceeding with data fetch")
 
             # Get all installations
+            _LOGGER.info("Fetching installations from Simon iO")
             installations_list = await Installation.async_get_installations(
                 self.auth_client, ttl=5
             )
+            _LOGGER.info("Successfully fetched %d installations", len(installations_list))
 
             # Store installations and get all devices
             all_devices = {}
             self.installations = {}
 
             for installation in installations_list:
+                _LOGGER.debug("Processing installation: %s (%s)", installation.name, installation.id)
                 self.installations[installation.id] = installation
                 devices = await installation.async_get_devices()
+                _LOGGER.debug("Found %d devices in installation %s", len(devices), installation.name)
                 all_devices.update(devices)
 
+            _LOGGER.info("Data update completed successfully. Total devices: %d", len(all_devices))
             return {
                 "installations": self.installations,
                 "devices": all_devices,
@@ -75,11 +82,17 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         except Exception as ex:
             _LOGGER.error("Error updating Simon iO data: %s", ex)
+            _LOGGER.error("Exception type: %s", type(ex).__name__)
+            import traceback
+            _LOGGER.error("Traceback: %s", traceback.format_exc())
             raise UpdateFailed(f"Error communicating with Simon iO API: {ex}") from ex
 
     async def _ensure_auth_client(self) -> None:
         """Ensure we have a valid auth client with fresh tokens."""
+        _LOGGER.info("Ensuring auth client is available")
+        
         if self.session is None:
+            _LOGGER.info("Creating new aiohttp session")
             self.session = aiohttp.ClientSession()
 
         # Check if we need to refresh the token
@@ -87,27 +100,53 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if token_expires_at:
             expires_at = datetime.fromisoformat(token_expires_at)
             if datetime.now() + timedelta(seconds=TOKEN_REFRESH_BUFFER) >= expires_at:
+                _LOGGER.info("Token expires soon, refreshing")
                 await self._refresh_token()
 
         # Create or recreate auth client
         if self.auth_client is None:
+            _LOGGER.info("Creating new SimonAuth client")
             # We need the password for Simon iO OAuth2 password grant
             if not self._password:
+                _LOGGER.error("No password available for authentication")
                 raise ConfigEntryAuthFailed("Password required for authentication - please re-authenticate")
             
-            self.auth_client = SimonAuth(
-                client_id=self.entry.data[CONF_CLIENT_ID],
-                client_secret=self.entry.data[CONF_CLIENT_SECRET],
-                username=self.entry.data[CONF_USERNAME],
-                password=self._password,
-                session=self.session,
-            )
+            _LOGGER.debug("Using stored credentials for SimonAuth")
+            _LOGGER.debug("Client ID: %s", self.entry.data[CONF_CLIENT_ID])
+            _LOGGER.debug("Client Secret: %s", self.entry.data[CONF_CLIENT_SECRET])
+            _LOGGER.debug("Username: %s", self.entry.data[CONF_USERNAME])
+            _LOGGER.debug("Password: %s", "***" if self._password else "EMPTY")
+            
+            try:
+                self.auth_client = SimonAuth(
+                    client_id=self.entry.data[CONF_CLIENT_ID],
+                    client_secret=self.entry.data[CONF_CLIENT_SECRET],
+                    username=self.entry.data[CONF_USERNAME],
+                    password=self._password,
+                    session=self.session,
+                )
+                _LOGGER.info("SimonAuth client created successfully")
+                
+                # Test the auth client immediately
+                _LOGGER.info("Testing auth client by getting access token")
+                test_token = await self.auth_client.async_get_access_token()
+                _LOGGER.info("Auth client test successful, token obtained")
+                
+            except Exception as ex:
+                _LOGGER.error("Failed to create or test SimonAuth client: %s", ex)
+                _LOGGER.error("Exception type: %s", type(ex).__name__)
+                import traceback
+                _LOGGER.error("Traceback: %s", traceback.format_exc())
+                raise ConfigEntryAuthFailed(f"Failed to create auth client: {ex}") from ex
 
     def set_password(self, password: str) -> None:
         """Set the password for authentication."""
+        _LOGGER.info("Setting password in coordinator")
+        _LOGGER.debug("Password provided: %s", "***" if password else "EMPTY")
         self._password = password
         # Clear existing auth client to force recreation with new password
         self.auth_client = None
+        _LOGGER.info("Password set and auth client cleared")
 
     async def _refresh_token(self) -> None:
         """Refresh the access token."""
@@ -154,16 +193,24 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Simon iO from a config entry."""
+    _LOGGER.info("Setting up Simon iO integration")
     coordinator = SimonDataUpdateCoordinator(hass, entry)
 
     # Check if we have a password stored (temporary during setup)
     password = entry.data.get(CONF_PASSWORD)
+    _LOGGER.info("Password found in config entry: %s", "YES" if password else "NO")
     if password:
+        _LOGGER.info("Setting password in coordinator")
         coordinator.set_password(password)
+    else:
+        _LOGGER.warning("No password found in config entry - this may cause authentication issues")
 
     try:
+        _LOGGER.info("Starting coordinator setup")
         await coordinator.async_setup()
-    except ConfigEntryAuthFailed:
+        _LOGGER.info("Coordinator setup completed successfully")
+    except ConfigEntryAuthFailed as ex:
+        _LOGGER.error("Authentication failed during setup: %s", ex)
         # Trigger reauth flow
         hass.async_create_task(
             hass.config_entries.flow.async_init(
@@ -173,15 +220,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             )
         )
         return False
-    except ConfigEntryNotReady:
+    except ConfigEntryNotReady as ex:
+        _LOGGER.error("Integration not ready: %s", ex)
         return False
 
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = coordinator
 
     # Set up platforms
+    _LOGGER.info("Setting up platforms: %s", PLATFORMS)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
+    _LOGGER.info("Simon iO integration setup completed successfully")
     return True
 
 

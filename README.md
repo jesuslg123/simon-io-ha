@@ -2,6 +2,13 @@
 
 A custom Home Assistant integration for Simon Series 270 smart home devices including smart blinds, lights, and switches.
 
+---
+**Note:**
+- This integration was created with the assistance of AI (GitHub Copilot).
+- The author has only tested the integration with the shutter device. Other device types may not be fully tested or supported.
+- Feel free to collaborate with the project.
+---
+
 ## ⚠️ Important: Client Credentials Required
 
 **This integration requires you to obtain your own Simon iO API credentials.** The integration author does not provide client IDs or secrets.

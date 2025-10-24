@@ -1,0 +1,54 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Simon iO Configuration",
+        "description": "Enter your Simon iO credentials to connect to your smart home devices.",
+        "data": {
+          "client_id": "Client ID",
+          "client_secret": "Client Secret", 
+          "username": "Username",
+          "password": "Password"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Simon iO Re-authentication",
+        "description": "Your Simon iO credentials have expired. Please enter your password to re-authenticate.",
+        "data": {
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Unable to connect to Simon iO API",
+      "invalid_auth": "Invalid authentication credentials",
+      "unknown": "Unknown error occurred"
+    },
+    "abort": {
+      "already_configured": "Simon iO is already configured",
+      "reauth_successful": "Re-authentication successful"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Simon iO Options",
+        "description": "Configure Simon iO integration options.",
+        "data": {
+          "update_interval": "Update interval (seconds)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "cover": {
+      "name": "Simon iO Cover"
+    },
+    "light": {
+      "name": "Simon iO Light"
+    },
+    "switch": {
+      "name": "Simon iO Switch"
+    }
+  }
+}

@@ -219,26 +219,11 @@ class SimonCoverEntity(CoverEntity):
         self._target_position = None
         self.async_write_ha_state()
         
-        # Try to stop the device. Prefer an explicit stop method if present,
-        # otherwise attempt to set the current level (this is what the API
-        # supports for blinds/multilevel devices).
+        # Send stop action to device using the API's stop action
         if self.device:
             try:
-                # If device provides an explicit async_stop, use it
-                if hasattr(self.device, "async_stop"):
-                    await self.device.async_stop()
-                    _LOGGER.debug("Successfully sent explicit stop command to %s", self.name)
-                else:
-                    # Fallback: if we can read a level, write it back to try to halt movement
-                    current_pos = self.current_cover_position
-                    if current_pos is not None:
-                        await self.device.async_set_level(current_pos)
-                        _LOGGER.debug("Sent current level %d%% to %s to attempt stop", current_pos, self.name)
-                    else:
-                        _LOGGER.debug(
-                            "No explicit stop method and no current position available for %s; cannot stop",
-                            self.name,
-                        )
+                await self.device.async_stop()
+                _LOGGER.debug("Successfully sent stop command to %s", self.name)
             except Exception as ex:
                 _LOGGER.error("Failed to stop cover %s: %s", self.name, ex)
                 # Still update our state even if the command failed

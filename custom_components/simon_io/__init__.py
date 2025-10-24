@@ -7,6 +7,10 @@ from typing import Any
 
 import aiohttp
 from aiosimon_io import Installation, SimonAuth
+
+# Patch the Device class to add async_stop method
+from .device_extensions import patch_device_class
+patch_device_class()
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant

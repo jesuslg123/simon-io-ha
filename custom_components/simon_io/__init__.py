@@ -183,23 +183,6 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _LOGGER.info("Creating new aiohttp session")
             self.session = aiohttp.ClientSession()
 
-        # Check if we need to refresh the token
-        token_expires_at = self.entry.data.get(CONF_TOKEN_EXPIRES_AT)
-        _LOGGER.debug("Token expiry data: %s (type: %s)", token_expires_at, type(token_expires_at))
-        if token_expires_at:
-            try:
-                # Ensure token_expires_at is a string before parsing
-                if isinstance(token_expires_at, str):
-                    expires_at = datetime.fromisoformat(token_expires_at)
-                    if datetime.now() + timedelta(seconds=TOKEN_REFRESH_BUFFER) >= expires_at:
-                        _LOGGER.info("Token expires soon, refreshing")
-                        await self._refresh_token()
-                else:
-                    _LOGGER.warning("Token expiry time is not a string: %s (type: %s)", token_expires_at, type(token_expires_at))
-            except (ValueError, TypeError) as ex:
-                _LOGGER.warning("Failed to parse token expiry time '%s': %s", token_expires_at, ex)
-                # Continue without token refresh check
-
         # Create or recreate auth client
         if self.auth_client is None:
             _LOGGER.info("Creating new SimonAuth client")
@@ -274,6 +257,24 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 import traceback
                 _LOGGER.error("Traceback: %s", traceback.format_exc())
                 raise ConfigEntryAuthFailed(f"Failed to create auth client: {ex}") from ex
+
+        # After ensuring the client exists, optionally refresh if expiry is near
+        token_expires_at = self.entry.data.get(CONF_TOKEN_EXPIRES_AT)
+        _LOGGER.debug("Token expiry data: %s (type: %s)", token_expires_at, type(token_expires_at))
+        if token_expires_at:
+            try:
+                if isinstance(token_expires_at, str):
+                    expires_at = datetime.fromisoformat(token_expires_at)
+                elif isinstance(token_expires_at, datetime):
+                    expires_at = token_expires_at
+                else:
+                    expires_at = None
+
+                if expires_at and (datetime.now() + timedelta(seconds=TOKEN_REFRESH_BUFFER) >= expires_at):
+                    _LOGGER.info("Token expires soon, refreshing")
+                    await self._refresh_token()
+            except (ValueError, TypeError) as ex:
+                _LOGGER.warning("Failed to parse token expiry time '%s': %s", token_expires_at, ex)
 
     def set_password(self, password: str) -> None:
         """Set the password for authentication."""

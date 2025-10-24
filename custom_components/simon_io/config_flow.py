@@ -126,6 +126,7 @@ class SimonConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             _LOGGER.info("User input received in config flow")
             _LOGGER.debug("User input keys: %s", list(user_input.keys()))
+            _LOGGER.debug("User input values: %s", {k: "***" if "password" in k.lower() or "secret" in k.lower() else v for k, v in user_input.items()})
             
             # Validate authentication
             auth_result = await validate_auth(
@@ -153,6 +154,8 @@ class SimonConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_TOKEN_EXPIRES_AT: auth_result["token_expires_at"],
                 }
                 _LOGGER.info("Storing config entry data with temporary password")
+                _LOGGER.debug("Stored data keys: %s", list(data.keys()))
+                _LOGGER.debug("Stored data values: %s", {k: "***" if "password" in k.lower() or "secret" in k.lower() or "token" in k.lower() else v for k, v in data.items()})
 
                 await self.async_set_unique_id(auth_result["user_id"])
                 self._abort_if_unique_id_configured()

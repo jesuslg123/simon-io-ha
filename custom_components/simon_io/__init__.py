@@ -17,6 +17,7 @@ from .const import (
     CONF_ACCESS_TOKEN,
     CONF_CLIENT_ID,
     CONF_CLIENT_SECRET,
+    CONF_PASSWORD,
     CONF_REFRESH_TOKEN,
     CONF_TOKEN_EXPIRES_AT,
     CONF_USERNAME,
@@ -164,7 +165,8 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             await self._ensure_auth_client()
             await self.async_config_entry_first_refresh()
             
-            # After successful setup, remove password from config entry
+            # Only cleanup password after successful setup and first refresh
+            _LOGGER.info("Coordinator setup successful, cleaning up password")
             await self._cleanup_password()
         except ConfigEntryAuthFailed:
             raise
@@ -173,15 +175,21 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def _cleanup_password(self) -> None:
         """Remove password from config entry after successful setup."""
+        _LOGGER.info("Starting password cleanup")
         if CONF_PASSWORD in self.entry.data:
+            _LOGGER.info("Password found in config entry, removing it")
             # Create new data without password
             new_data = {k: v for k, v in self.entry.data.items() if k != CONF_PASSWORD}
             
             # Update the config entry
             self.hass.config_entries.async_update_entry(self.entry, data=new_data)
+            _LOGGER.info("Password removed from config entry")
             
             # Clear password from memory
             self._password = None
+            _LOGGER.info("Password cleared from memory")
+        else:
+            _LOGGER.info("No password found in config entry to cleanup")
 
     async def async_unload(self) -> None:
         """Unload the coordinator."""
@@ -194,6 +202,9 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Simon iO from a config entry."""
     _LOGGER.info("Setting up Simon iO integration")
+    _LOGGER.debug("Config entry data keys: %s", list(entry.data.keys()))
+    _LOGGER.debug("Config entry data values: %s", {k: "***" if "password" in k.lower() or "secret" in k.lower() or "token" in k.lower() else v for k, v in entry.data.items()})
+    
     coordinator = SimonDataUpdateCoordinator(hass, entry)
 
     # Check if we have a password stored (temporary during setup)
@@ -201,6 +212,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _LOGGER.info("Password found in config entry: %s", "YES" if password else "NO")
     if password:
         _LOGGER.info("Setting password in coordinator")
+        _LOGGER.debug("Password length: %d characters", len(password))
         coordinator.set_password(password)
     else:
         _LOGGER.warning("No password found in config entry - this may cause authentication issues")

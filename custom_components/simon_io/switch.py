@@ -76,13 +76,13 @@ class SimonSwitchEntity(SwitchEntity):
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the switch on."""
         if self.device:
-            await self.device.async_set_state(True)
+            await self.coordinator.async_call_with_auth_retry(self.device.async_set_state, True)
             await self.coordinator.async_request_refresh()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the switch off."""
         if self.device:
-            await self.device.async_set_state(False)
+            await self.coordinator.async_call_with_auth_retry(self.device.async_set_state, False)
             await self.coordinator.async_request_refresh()
 
     @property

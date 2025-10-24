@@ -102,17 +102,17 @@ class SimonLightEntity(LightEntity):
         if brightness is not None and CAPABILITY_BRIGHTNESS in self.device.get_capabilities():
             # Convert brightness from 0-255 to percentage
             level = int((brightness / 255) * 100)
-            await self.device.async_set_level(level)
+            await self.coordinator.async_call_with_auth_retry(self.device.async_set_level, level)
         else:
             # Just turn on
-            await self.device.async_set_state(True)
+            await self.coordinator.async_call_with_auth_retry(self.device.async_set_state, True)
         
         await self.coordinator.async_request_refresh()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the light off."""
         if self.device:
-            await self.device.async_set_state(False)
+            await self.coordinator.async_call_with_auth_retry(self.device.async_set_state, False)
             await self.coordinator.async_request_refresh()
 
     @property

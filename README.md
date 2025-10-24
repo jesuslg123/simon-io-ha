@@ -21,6 +21,7 @@ This integration is built using the [aiosimon-io](https://github.com/datakatalys
 - **Dimmable Lights**: On/off control and brightness adjustment
 - **Switches**: On/off control for outlets and relays
 - **OAuth2 Authentication**: Secure cloud-based authentication with automatic token refresh
+  - If a device action fails due to an expired token, the integration will automatically refresh the token and retry the action once.
 - **Real-time Updates**: Device states update every 30 seconds
 - **Multiple Installations**: Support for multiple Simon iO installations
 - **Re-authentication Support**: Easy credential updates without losing configuration
@@ -116,7 +117,7 @@ The integration automatically detects device types based on Simon iO device capa
 If you encounter authentication errors:
 
 1. **Check Credentials**: Verify your Client ID, Client Secret, Username, and Password
-2. **Re-authenticate**: Use the integration's re-authentication options
+2. **Re-authenticate**: Use the integration's re-authentication options. Note: The integration will auto-refresh tokens and retry failed actions once; persistent failures may still require re-auth.
 3. **Check Network**: Ensure Home Assistant can reach Simon iO API
 4. **Contact Simon Support**: If credentials are invalid or expired
 
@@ -209,3 +210,4 @@ For support and questions:
 - Real-time state updates
 - Re-authentication support
 - Enhanced cover platform with full position control
+ - Auto token refresh and single retry on device actions

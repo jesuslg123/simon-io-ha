@@ -57,6 +57,47 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             update_interval=timedelta(seconds=UPDATE_INTERVAL),
         )
 
+    async def async_call_with_auth_retry(self, func, *args, **kwargs):
+        """Call a coroutine-producing function; on auth failure refresh token and retry once.
+
+        This is intended to wrap any device action. It will:
+        - attempt the call
+        - if it fails with a likely auth error (401/403/expired token), refresh tokens
+        - retry the call once
+        """
+        # First, try normally
+        try:
+            return await func(*args, **kwargs)
+        except Exception as ex:
+            if self._is_auth_error(ex):
+                _LOGGER.warning("Action failed due to auth error, attempting token refresh and retry: %s", ex)
+                try:
+                    await self._refresh_token(force=True)
+                except Exception as refresh_ex:
+                    _LOGGER.error("Token refresh after action failure also failed: %s", refresh_ex)
+                    raise ex
+
+                # Retry once
+                try:
+                    return await func(*args, **kwargs)
+                except Exception as retry_ex:
+                    _LOGGER.error("Action retry after token refresh failed: %s", retry_ex)
+                    raise retry_ex
+            # Not an auth error -> propagate
+            raise
+
+    def _is_auth_error(self, ex: Exception) -> bool:
+        """Best-effort detection of authentication-related errors from underlying client."""
+        msg = str(ex).lower()
+        # Common markers
+        if any(k in msg for k in ["unauthorized", "forbidden", "invalid token", "token expired", "expired token", "401", "403"]):
+            return True
+        # aiohttp ClientResponseError often has status attribute
+        status = getattr(ex, "status", None) or getattr(getattr(ex, "response", None), "status", None)
+        if status in (401, 403):
+            return True
+        return False
+
     def trigger_fast_polling(self) -> None:
         """Trigger fast polling for a short duration after user action."""
         self._fast_poll_until = datetime.now() + self._fast_poll_duration
@@ -103,6 +144,31 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             }
 
         except Exception as ex:
+            # On auth error, attempt one refresh and retry the whole fetch
+            if self._is_auth_error(ex):
+                _LOGGER.warning("Data update failed due to auth error; refreshing token and retrying once: %s", ex)
+                try:
+                    await self._refresh_token(force=True)
+                    # Retry once
+                    installations_list = await Installation.async_get_installations(
+                        self.auth_client, ttl=5
+                    )
+
+                    all_devices = {}
+                    self.installations = {}
+                    for installation in installations_list:
+                        self.installations[installation.id] = installation
+                        devices = await installation.async_get_devices()
+                        all_devices.update(devices)
+
+                    return {
+                        "installations": self.installations,
+                        "devices": all_devices,
+                    }
+                except Exception as retry_ex:
+                    _LOGGER.error("Retry after token refresh failed: %s", retry_ex)
+                    raise UpdateFailed(f"Auth retry failed: {retry_ex}") from retry_ex
+
             _LOGGER.error("Error updating Simon iO data: %s", ex)
             _LOGGER.error("Exception type: %s", type(ex).__name__)
             import traceback
@@ -195,6 +261,8 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 # Test the auth client immediately (this will refresh tokens if needed)
                 _LOGGER.info("Testing auth client by getting access token")
                 test_token = await self.auth_client.async_get_access_token()
+                # Persist any potentially updated tokens (library may refresh on demand)
+                await self._persist_tokens()
                 _LOGGER.info("Auth client test successful, token obtained")
 
             except ConfigEntryAuthFailed:
@@ -216,15 +284,53 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.auth_client = None
         _LOGGER.info("Password set and auth client cleared")
 
-    async def _refresh_token(self) -> None:
-        """Refresh the access token."""
+    async def _refresh_token(self, force: bool = False) -> None:
+        """Refresh the access token using SimonAuth and persist it to the entry.
+
+        If 'force' is True, we clear the in-memory access_token first to force a refresh.
+        """
+        if not self.auth_client:
+            await self._ensure_auth_client()
+
         try:
-            # For now, we'll trigger a reauth flow
-            # In a real implementation, you'd use the refresh token
-            raise ConfigEntryAuthFailed("Token expired, reauth required")
+            if force and hasattr(self.auth_client, "access_token"):
+                setattr(self.auth_client, "access_token", None)
+
+            _LOGGER.debug("Requesting (re)fresh access token from SimonAuth")
+            await self.auth_client.async_get_access_token()
+            await self._persist_tokens()
+            _LOGGER.info("Token refresh completed and persisted")
         except Exception as ex:
             _LOGGER.error("Failed to refresh token: %s", ex)
             raise ConfigEntryAuthFailed("Token refresh failed") from ex
+
+    async def _persist_tokens(self) -> None:
+        """Persist tokens from SimonAuth to the config entry if available."""
+        if not self.auth_client:
+            return
+        access_token = getattr(self.auth_client, "access_token", None)
+        refresh_token = getattr(self.auth_client, "refresh_token", None)
+        token_expires_at = getattr(self.auth_client, "token_expires_at", None)
+
+        # Normalize expiry to ISO string
+        if token_expires_at is not None:
+            if hasattr(token_expires_at, "isoformat"):
+                token_expires_at = token_expires_at.isoformat()
+            elif not isinstance(token_expires_at, str):
+                token_expires_at = str(token_expires_at)
+
+        # Update entry data only if we have any token values
+        new_data = {**self.entry.data}
+        if access_token is not None:
+            new_data[CONF_ACCESS_TOKEN] = access_token
+        if refresh_token is not None:
+            new_data[CONF_REFRESH_TOKEN] = refresh_token
+        if token_expires_at is not None:
+            new_data[CONF_TOKEN_EXPIRES_AT] = token_expires_at
+
+        if new_data != self.entry.data:
+            _LOGGER.debug("Persisting updated tokens to config entry")
+            self.hass.config_entries.async_update_entry(self.entry, data=new_data)
 
     async def async_setup(self) -> None:
         """Set up the coordinator."""

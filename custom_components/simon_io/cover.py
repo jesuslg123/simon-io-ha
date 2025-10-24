@@ -152,7 +152,7 @@ class SimonCoverEntity(CoverEntity):
             self.async_write_ha_state()
             
             try:
-                await self.device.async_set_level(100)
+                await self.coordinator.async_call_with_auth_retry(self.device.async_set_level, 100)
                 _LOGGER.debug("Successfully sent open command to %s", self.name)
             except Exception as ex:
                 _LOGGER.error("Failed to open cover %s: %s", self.name, ex)
@@ -174,7 +174,7 @@ class SimonCoverEntity(CoverEntity):
             self.async_write_ha_state()
             
             try:
-                await self.device.async_set_level(0)
+                await self.coordinator.async_call_with_auth_retry(self.device.async_set_level, 0)
                 _LOGGER.debug("Successfully sent close command to %s", self.name)
             except Exception as ex:
                 _LOGGER.error("Failed to close cover %s: %s", self.name, ex)
@@ -208,7 +208,7 @@ class SimonCoverEntity(CoverEntity):
             self.async_write_ha_state()
             
             try:
-                await self.device.async_set_level(position)
+                await self.coordinator.async_call_with_auth_retry(self.device.async_set_level, position)
                 _LOGGER.debug("Successfully sent position command to %s", self.name)
             except Exception as ex:
                 _LOGGER.error("Failed to set position for cover %s: %s", self.name, ex)
@@ -234,7 +234,7 @@ class SimonCoverEntity(CoverEntity):
         # Send stop action to device using the API's stop action
         if self.device:
             try:
-                await self.device.async_stop()
+                await self.coordinator.async_call_with_auth_retry(self.device.async_stop)
                 _LOGGER.debug("Successfully sent stop command to %s", self.name)
             except Exception as ex:
                 _LOGGER.error("Failed to stop cover %s: %s", self.name, ex)

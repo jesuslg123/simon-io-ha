@@ -151,7 +151,8 @@ class SimonCoverEntity(CoverEntity):
                 self.async_write_ha_state()
                 raise
             
-            # Request refresh to get updated state
+            # Trigger fast polling to quickly update state
+            self.coordinator.trigger_fast_polling()
             await self.coordinator.async_request_refresh()
 
     async def async_close_cover(self, **kwargs: Any) -> None:
@@ -172,7 +173,8 @@ class SimonCoverEntity(CoverEntity):
                 self.async_write_ha_state()
                 raise
             
-            # Request refresh to get updated state
+            # Trigger fast polling to quickly update state
+            self.coordinator.trigger_fast_polling()
             await self.coordinator.async_request_refresh()
 
     async def async_set_cover_position(self, **kwargs: Any) -> None:
@@ -206,7 +208,8 @@ class SimonCoverEntity(CoverEntity):
                 self.async_write_ha_state()
                 raise
             
-            # Request refresh to get updated state
+            # Trigger fast polling to quickly update state
+            self.coordinator.trigger_fast_polling()
             await self.coordinator.async_request_refresh()
 
     async def async_stop_cover(self, **kwargs: Any) -> None:
@@ -230,7 +233,8 @@ class SimonCoverEntity(CoverEntity):
                 self.async_write_ha_state()
                 raise
         
-        # Request refresh to get updated state
+        # Trigger fast polling to quickly update state
+        self.coordinator.trigger_fast_polling()
         await self.coordinator.async_request_refresh()
 
     @property

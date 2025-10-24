@@ -46,6 +46,9 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.auth_client: SimonAuth | None = None
         self.installations: dict[str, Installation] = {}
         self._password: str | None = None  # Temporary password storage for auth
+        self._fast_poll_until: datetime | None = None
+        self._fast_poll_interval = timedelta(seconds=2)
+        self._fast_poll_duration = timedelta(seconds=10)
 
         super().__init__(
             hass,
@@ -54,8 +57,21 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             update_interval=timedelta(seconds=UPDATE_INTERVAL),
         )
 
+    def trigger_fast_polling(self) -> None:
+        """Trigger fast polling for a short duration after user action."""
+        self._fast_poll_until = datetime.now() + self._fast_poll_duration
+        # Update the coordinator's update interval temporarily
+        self.update_interval = self._fast_poll_interval
+        _LOGGER.debug("Fast polling triggered for %s seconds", self._fast_poll_duration.total_seconds())
+
     async def _async_update_data(self) -> dict[str, Any]:
         """Update data via library."""
+        # Check if we should return to normal polling
+        if self._fast_poll_until and datetime.now() >= self._fast_poll_until:
+            self._fast_poll_until = None
+            self.update_interval = timedelta(seconds=UPDATE_INTERVAL)
+            _LOGGER.debug("Fast polling ended, returning to normal interval")
+        
         _LOGGER.info("Starting data update")
         try:
             # Ensure we have a valid session and auth client

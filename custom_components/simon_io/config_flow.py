@@ -108,11 +108,13 @@ class SimonConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if isinstance(auth_result, str):
                 errors["base"] = auth_result
             else:
-                # Store only the necessary data (no password)
+                # Store data including password temporarily for initial setup
+                # Password will be removed after successful coordinator setup
                 data = {
                     CONF_CLIENT_ID: user_input[CONF_CLIENT_ID],
                     CONF_CLIENT_SECRET: user_input[CONF_CLIENT_SECRET],
                     CONF_USERNAME: user_input[CONF_USERNAME],
+                    CONF_PASSWORD: user_input[CONF_PASSWORD],  # Temporary storage
                     CONF_ACCESS_TOKEN: auth_result["access_token"],
                     CONF_REFRESH_TOKEN: auth_result["refresh_token"],
                     CONF_TOKEN_EXPIRES_AT: auth_result["token_expires_at"],
@@ -160,11 +162,12 @@ class SimonConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if isinstance(auth_result, str):
                 errors["base"] = auth_result
             else:
-                # Update the entry with new tokens
+                # Update the entry with new tokens and temporary password
                 self.hass.config_entries.async_update_entry(
                     self._reauth_entry,
                     data={
                         **self._reauth_entry.data,
+                        CONF_PASSWORD: user_input[CONF_PASSWORD],  # Temporary storage
                         CONF_ACCESS_TOKEN: auth_result["access_token"],
                         CONF_REFRESH_TOKEN: auth_result["refresh_token"],
                         CONF_TOKEN_EXPIRES_AT: auth_result["token_expires_at"],

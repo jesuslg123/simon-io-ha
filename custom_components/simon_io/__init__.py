@@ -35,9 +35,11 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         """Initialize the coordinator."""
         self.entry = entry
+        self.hass = hass
         self.session: aiohttp.ClientSession | None = None
         self.auth_client: SimonAuth | None = None
         self.installations: dict[str, Installation] = {}
+        self._password: str | None = None  # Temporary password storage for auth
 
         super().__init__(
             hass,
@@ -89,13 +91,23 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         # Create or recreate auth client
         if self.auth_client is None:
+            # We need the password for Simon iO OAuth2 password grant
+            if not self._password:
+                raise ConfigEntryAuthFailed("Password required for authentication - please re-authenticate")
+            
             self.auth_client = SimonAuth(
                 client_id=self.entry.data[CONF_CLIENT_ID],
                 client_secret=self.entry.data[CONF_CLIENT_SECRET],
                 username=self.entry.data[CONF_USERNAME],
-                password="",  # We don't store the password
+                password=self._password,
                 session=self.session,
             )
+
+    def set_password(self, password: str) -> None:
+        """Set the password for authentication."""
+        self._password = password
+        # Clear existing auth client to force recreation with new password
+        self.auth_client = None
 
     async def _refresh_token(self) -> None:
         """Refresh the access token."""
@@ -112,10 +124,25 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         try:
             await self._ensure_auth_client()
             await self.async_config_entry_first_refresh()
+            
+            # After successful setup, remove password from config entry
+            await self._cleanup_password()
         except ConfigEntryAuthFailed:
             raise
         except Exception as ex:
             raise ConfigEntryNotReady(f"Failed to setup Simon iO: {ex}") from ex
+
+    async def _cleanup_password(self) -> None:
+        """Remove password from config entry after successful setup."""
+        if CONF_PASSWORD in self.entry.data:
+            # Create new data without password
+            new_data = {k: v for k, v in self.entry.data.items() if k != CONF_PASSWORD}
+            
+            # Update the config entry
+            self.hass.config_entries.async_update_entry(self.entry, data=new_data)
+            
+            # Clear password from memory
+            self._password = None
 
     async def async_unload(self) -> None:
         """Unload the coordinator."""
@@ -128,6 +155,11 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Simon iO from a config entry."""
     coordinator = SimonDataUpdateCoordinator(hass, entry)
+
+    # Check if we have a password stored (temporary during setup)
+    password = entry.data.get(CONF_PASSWORD)
+    if password:
+        coordinator.set_password(password)
 
     try:
         await coordinator.async_setup()

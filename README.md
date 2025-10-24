@@ -2,6 +2,12 @@
 
 A custom Home Assistant integration for Simon Series 270 smart home devices including smart blinds, lights, and switches.
 
+## ⚠️ Important: Client Credentials Required
+
+**This integration requires you to obtain your own Simon iO API credentials.** The integration author does not provide client IDs or secrets.
+
+This integration is built using the [aiosimon-io](https://github.com/datakatalyst/aiosimon-io) Python library and provides a Home Assistant interface for Simon's cloud-based API.
+
 ## Features
 
 - **Smart Blinds/Shutters**: Control position, open/close, and stop operations
@@ -10,6 +16,19 @@ A custom Home Assistant integration for Simon Series 270 smart home devices incl
 - **OAuth2 Authentication**: Secure cloud-based authentication with automatic token refresh
 - **Real-time Updates**: Device states update every 30 seconds
 - **Multiple Installations**: Support for multiple Simon iO installations
+- **Re-authentication Support**: Easy credential updates without losing configuration
+
+## Prerequisites
+
+Before installing this integration, you must have:
+
+1. **Simon Series 270 devices** (blinds, lights, switches)
+2. **Simon iO account** with active devices
+3. **Simon iO API credentials**:
+   - Client ID
+   - Client Secret
+   - Username (your Simon iO account email)
+   - Password (your Simon iO account password)
 
 ## Installation
 
@@ -27,15 +46,6 @@ This integration will be available through HACS (Home Assistant Community Store)
 
 ## Configuration
 
-### Prerequisites
-
-You need the following credentials from Simon iO:
-
-- **Client ID**: Your Simon iO application client ID
-- **Client Secret**: Your Simon iO application client secret  
-- **Username**: Your Simon iO account username
-- **Password**: Your Simon iO account password
-
 ### Setup Process
 
 1. **Add Integration**: Go to Settings > Devices & Services > Add Integration
@@ -49,6 +59,22 @@ You need the following credentials from Simon iO:
 - **Password Storage**: Your password is only used during initial authentication and re-authentication
 - **Token Management**: The integration stores only refresh tokens, not passwords
 - **Re-authentication**: If tokens expire, you'll be prompted to re-enter your password
+
+## Re-authentication
+
+The integration supports multiple ways to update credentials:
+
+### Automatic Re-authentication
+- Triggered automatically when tokens expire
+- Prompts for password only (uses stored client credentials)
+
+### Manual Re-authentication
+- Update all credentials (Client ID, Secret, Username, Password)
+- Access via: Settings > Devices & Services > Simon iO > Configure
+
+### Password-Only Update
+- Update just your password
+- Access via: Settings > Devices & Services > Simon iO > Options
 
 ## Supported Devices
 
@@ -83,8 +109,9 @@ The integration automatically detects device types based on Simon iO device capa
 If you encounter authentication errors:
 
 1. **Check Credentials**: Verify your Client ID, Client Secret, Username, and Password
-2. **Re-authenticate**: Delete the integration and add it again
+2. **Re-authenticate**: Use the integration's re-authentication options
 3. **Check Network**: Ensure Home Assistant can reach Simon iO API
+4. **Contact Simon Support**: If credentials are invalid or expired
 
 ### Device Not Appearing
 
@@ -154,6 +181,8 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 This integration is not officially endorsed by Simon S.A. It is an independent project using the [aiosimon-io](https://github.com/datakatalyst/aiosimon-io) library.
 
+**Important**: This integration requires users to obtain their own Simon iO API credentials. The author does not provide client IDs or secrets.
+
 ## Support
 
 For support and questions:
@@ -171,3 +200,5 @@ For support and questions:
 - Cover, Light, and Switch platforms
 - Automatic device discovery
 - Real-time state updates
+- Re-authentication support
+- Enhanced cover platform with full position control

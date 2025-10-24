@@ -11,6 +11,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import (
@@ -98,41 +99,87 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         # Check if we need to refresh the token
         token_expires_at = self.entry.data.get(CONF_TOKEN_EXPIRES_AT)
+        _LOGGER.debug("Token expiry data: %s (type: %s)", token_expires_at, type(token_expires_at))
         if token_expires_at:
-            expires_at = datetime.fromisoformat(token_expires_at)
-            if datetime.now() + timedelta(seconds=TOKEN_REFRESH_BUFFER) >= expires_at:
-                _LOGGER.info("Token expires soon, refreshing")
-                await self._refresh_token()
+            try:
+                # Ensure token_expires_at is a string before parsing
+                if isinstance(token_expires_at, str):
+                    expires_at = datetime.fromisoformat(token_expires_at)
+                    if datetime.now() + timedelta(seconds=TOKEN_REFRESH_BUFFER) >= expires_at:
+                        _LOGGER.info("Token expires soon, refreshing")
+                        await self._refresh_token()
+                else:
+                    _LOGGER.warning("Token expiry time is not a string: %s (type: %s)", token_expires_at, type(token_expires_at))
+            except (ValueError, TypeError) as ex:
+                _LOGGER.warning("Failed to parse token expiry time '%s': %s", token_expires_at, ex)
+                # Continue without token refresh check
 
         # Create or recreate auth client
         if self.auth_client is None:
             _LOGGER.info("Creating new SimonAuth client")
-            # We need the password for Simon iO OAuth2 password grant
-            if not self._password:
-                _LOGGER.error("No password available for authentication")
-                raise ConfigEntryAuthFailed("Password required for authentication - please re-authenticate")
-            
-            _LOGGER.debug("Using stored credentials for SimonAuth")
-            _LOGGER.debug("Client ID: %s", self.entry.data[CONF_CLIENT_ID])
-            _LOGGER.debug("Client Secret: %s", self.entry.data[CONF_CLIENT_SECRET])
-            _LOGGER.debug("Username: %s", self.entry.data[CONF_USERNAME])
-            _LOGGER.debug("Password: %s", "***" if self._password else "EMPTY")
-            
+            # Prefer using a stored password (temporary during setup). If no
+            # password is available (we remove it after initial setup), try to
+            # reuse stored tokens (access/refresh) from the config entry.
+            _LOGGER.debug("Client ID: %s", self.entry.data.get(CONF_CLIENT_ID))
+            _LOGGER.debug("Client Secret: %s", self.entry.data.get(CONF_CLIENT_SECRET))
+            _LOGGER.debug("Username: %s", self.entry.data.get(CONF_USERNAME))
+
             try:
-                self.auth_client = SimonAuth(
-                    client_id=self.entry.data[CONF_CLIENT_ID],
-                    client_secret=self.entry.data[CONF_CLIENT_SECRET],
-                    username=self.entry.data[CONF_USERNAME],
-                    password=self._password,
-                    session=self.session,
-                )
+                if self._password:
+                    _LOGGER.debug("Using stored password for SimonAuth")
+                    self.auth_client = SimonAuth(
+                        client_id=self.entry.data[CONF_CLIENT_ID],
+                        client_secret=self.entry.data[CONF_CLIENT_SECRET],
+                        username=self.entry.data[CONF_USERNAME],
+                        password=self._password,
+                        session=self.session,
+                    )
+                else:
+                    # Try to reuse stored tokens if available
+                    access_token = self.entry.data.get(CONF_ACCESS_TOKEN)
+                    refresh_token = self.entry.data.get(CONF_REFRESH_TOKEN)
+                    token_expires_at = self.entry.data.get(CONF_TOKEN_EXPIRES_AT)
+
+                    if not (access_token or refresh_token):
+                        _LOGGER.error("No password or tokens available for authentication")
+                        raise ConfigEntryAuthFailed(
+                            "Password required for authentication - please re-authenticate"
+                        )
+
+                    _LOGGER.debug("Creating SimonAuth using stored tokens")
+                    # Provide an empty password; we will populate tokens below
+                    self.auth_client = SimonAuth(
+                        client_id=self.entry.data[CONF_CLIENT_ID],
+                        client_secret=self.entry.data[CONF_CLIENT_SECRET],
+                        username=self.entry.data[CONF_USERNAME],
+                        password="",
+                        session=self.session,
+                    )
+
+                    # Restore tokens so SimonAuth can use them/refresh them
+                    self.auth_client.access_token = access_token
+                    self.auth_client.refresh_token = refresh_token
+                    if token_expires_at:
+                        try:
+                            if isinstance(token_expires_at, str):
+                                self.auth_client.token_expires_at = datetime.fromisoformat(token_expires_at)
+                            elif isinstance(token_expires_at, datetime):
+                                self.auth_client.token_expires_at = token_expires_at
+                        except Exception:
+                            _LOGGER.warning(
+                                "Failed to parse stored token expiry '%s'", token_expires_at
+                            )
+
                 _LOGGER.info("SimonAuth client created successfully")
-                
-                # Test the auth client immediately
+
+                # Test the auth client immediately (this will refresh tokens if needed)
                 _LOGGER.info("Testing auth client by getting access token")
                 test_token = await self.auth_client.async_get_access_token()
                 _LOGGER.info("Auth client test successful, token obtained")
-                
+
+            except ConfigEntryAuthFailed:
+                # Propagate reauth requests
+                raise
             except Exception as ex:
                 _LOGGER.error("Failed to create or test SimonAuth client: %s", ex)
                 _LOGGER.error("Exception type: %s", type(ex).__name__)
@@ -227,7 +274,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.async_create_task(
             hass.config_entries.flow.async_init(
                 DOMAIN,
-                context={"source": "reauth"},
+                context={"source": "reauth", "entry_id": entry.entry_id},
                 data=entry.data,
             )
         )
@@ -243,8 +290,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _LOGGER.info("Setting up platforms: %s", PLATFORMS)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
+    # Register options flow
+    entry.async_on_unload(
+        entry.add_update_listener(async_reload_entry)
+    )
+    
+    # Options flow is provided via the ConfigFlow's async_get_options_flow
+    # implementation in config_flow.py, no runtime registration required.
+
     _LOGGER.info("Simon iO integration setup completed successfully")
     return True
+
+
+async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Reload config entry."""
+    await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

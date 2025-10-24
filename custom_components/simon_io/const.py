@@ -22,6 +22,7 @@ TOKEN_REFRESH_BUFFER = 300  # seconds before expiry to refresh token
 CAPABILITY_BRIGHTNESS = "brightness"
 CAPABILITY_ON_OFF = "on_off"
 CAPABILITY_LEVEL = "level"
+CAPABILITY_STOP = "stop"
 
 # Device types
 DEVICE_TYPE_COVER = "cover"

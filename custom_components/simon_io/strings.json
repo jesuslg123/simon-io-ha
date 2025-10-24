@@ -17,6 +17,23 @@
         "data": {
           "password": "Password"
         }
+      },
+      "manual_reauth": {
+        "title": "Simon iO Manual Re-authentication",
+        "description": "Enter your Simon iO credentials to update the integration.",
+        "data": {
+          "client_id": "Client ID",
+          "client_secret": "Client Secret",
+          "username": "Username",
+          "password": "Password"
+        }
+      },
+      "password_reauth": {
+        "title": "Simon iO Password Update",
+        "description": "Enter your new password to update the integration.",
+        "data": {
+          "password": "Password"
+        }
       }
     },
     "error": {
@@ -35,7 +52,8 @@
         "title": "Simon iO Options",
         "description": "Configure Simon iO integration options.",
         "data": {
-          "update_interval": "Update interval (seconds)"
+          "reauth": "Re-authenticate with new credentials",
+          "password_reauth": "Update password only"
         }
       }
     }

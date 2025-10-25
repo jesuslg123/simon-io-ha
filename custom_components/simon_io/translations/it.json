@@ -1,0 +1,72 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configurazione Simon iO",
+        "description": "Inserisci le credenziali Simon iO per connetterti ai tuoi dispositivi smart home.",
+        "data": {
+          "client_id": "ID client",
+          "client_secret": "Segreto client",
+          "username": "Nome utente",
+          "password": "Password"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Riautenticazione Simon iO",
+        "description": "Le tue credenziali Simon iO sono scadute. Inserisci la password per riautenticarti.",
+        "data": {
+          "password": "Password"
+        }
+      },
+      "manual_reauth": {
+        "title": "Riautenticazione manuale Simon iO",
+        "description": "Inserisci le credenziali Simon iO per aggiornare l'integrazione.",
+        "data": {
+          "client_id": "ID client",
+          "client_secret": "Segreto client",
+          "username": "Nome utente",
+          "password": "Password"
+        }
+      },
+      "password_reauth": {
+        "title": "Aggiornamento della password",
+        "description": "Inserisci la nuova password per aggiornare l'integrazione.",
+        "data": {
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Impossibile connettersi all'API Simon iO",
+      "invalid_auth": "Credenziali di autenticazione non valide",
+      "unknown": "Errore sconosciuto"
+    },
+    "abort": {
+      "already_configured": "Simon iO è già configurato",
+      "reauth_successful": "Riautenticazione riuscita"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opzioni Simon iO",
+        "description": "Configura le opzioni dell'integrazione Simon iO.",
+        "data": {
+          "reauth": "Riautenticati con nuove credenziali",
+          "password_reauth": "Aggiorna solo la password"
+        }
+      }
+    }
+  },
+  "entity": {
+    "cover": {
+      "name": "Tapparella Simon iO"
+    },
+    "light": {
+      "name": "Luce Simon iO"
+    },
+    "switch": {
+      "name": "Interruttore Simon iO"
+    }
+  }
+}

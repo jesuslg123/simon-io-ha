@@ -1,0 +1,72 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configuration Simon iO",
+        "description": "Saisissez vos identifiants Simon iO pour vous connecter à vos appareils domotiques.",
+        "data": {
+          "client_id": "ID client",
+          "client_secret": "Secret client",
+          "username": "Nom d'utilisateur",
+          "password": "Mot de passe"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Ré-authentification Simon iO",
+        "description": "Vos identifiants Simon iO ont expiré. Veuillez saisir votre mot de passe pour vous ré-authentifier.",
+        "data": {
+          "password": "Mot de passe"
+        }
+      },
+      "manual_reauth": {
+        "title": "Ré-authentification manuelle Simon iO",
+        "description": "Saisissez vos identifiants Simon iO pour mettre à jour l'intégration.",
+        "data": {
+          "client_id": "ID client",
+          "client_secret": "Secret client",
+          "username": "Nom d'utilisateur",
+          "password": "Mot de passe"
+        }
+      },
+      "password_reauth": {
+        "title": "Mise à jour du mot de passe",
+        "description": "Saisissez votre nouveau mot de passe pour mettre à jour l'intégration.",
+        "data": {
+          "password": "Mot de passe"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Impossible de se connecter à l'API Simon iO",
+      "invalid_auth": "Identifiants d'authentification non valides",
+      "unknown": "Erreur inconnue"
+    },
+    "abort": {
+      "already_configured": "Simon iO est déjà configuré",
+      "reauth_successful": "Ré-authentification réussie"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options Simon iO",
+        "description": "Configurer les options de l'intégration Simon iO.",
+        "data": {
+          "reauth": "Se ré-authentifier avec de nouvelles informations d'identification",
+          "password_reauth": "Mettre à jour uniquement le mot de passe"
+        }
+      }
+    }
+  },
+  "entity": {
+    "cover": {
+      "name": "Volet Simon iO"
+    },
+    "light": {
+      "name": "Lumière Simon iO"
+    },
+    "switch": {
+      "name": "Interrupteur Simon iO"
+    }
+  }
+}

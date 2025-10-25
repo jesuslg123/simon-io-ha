@@ -1,0 +1,72 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configuración de Simon iO",
+        "description": "Introduce tus credenciales de Simon iO para conectarte a tus dispositivos domésticos inteligentes.",
+        "data": {
+          "client_id": "ID de cliente",
+          "client_secret": "Secreto de cliente",
+          "username": "Usuario",
+          "password": "Contraseña"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Reautenticación de Simon iO",
+        "description": "Tus credenciales de Simon iO han caducado. Introduce tu contraseña para volver a autenticarte.",
+        "data": {
+          "password": "Contraseña"
+        }
+      },
+      "manual_reauth": {
+        "title": "Reautenticación manual de Simon iO",
+        "description": "Introduce tus credenciales de Simon iO para actualizar la integración.",
+        "data": {
+          "client_id": "ID de cliente",
+          "client_secret": "Secreto de cliente",
+          "username": "Usuario",
+          "password": "Contraseña"
+        }
+      },
+      "password_reauth": {
+        "title": "Actualización de contraseña",
+        "description": "Introduce tu nueva contraseña para actualizar la integración.",
+        "data": {
+          "password": "Contraseña"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "No se puede conectar con la API de Simon iO",
+      "invalid_auth": "Credenciales de autenticación no válidas",
+      "unknown": "Error desconocido"
+    },
+    "abort": {
+      "already_configured": "Simon iO ya está configurado",
+      "reauth_successful": "Reautenticación correcta"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opciones de Simon iO",
+        "description": "Configura las opciones de la integración Simon iO.",
+        "data": {
+          "reauth": "Volver a autenticar con nuevas credenciales",
+          "password_reauth": "Actualizar solo la contraseña"
+        }
+      }
+    }
+  },
+  "entity": {
+    "cover": {
+      "name": "Persiana Simon iO"
+    },
+    "light": {
+      "name": "Luz Simon iO"
+    },
+    "switch": {
+      "name": "Interruptor Simon iO"
+    }
+  }
+}

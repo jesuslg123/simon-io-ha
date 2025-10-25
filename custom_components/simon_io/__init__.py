@@ -126,6 +126,10 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             await self._ensure_auth_client()
             _LOGGER.info("Auth client ensured, proceeding with data fetch")
 
+            if self.auth_client is None:
+                _LOGGER.error("Auth client is None after ensure; cannot fetch installations")
+                raise UpdateFailed("Auth client not initialized")
+
             # Get all installations
             _LOGGER.info("Fetching installations from Simon iO")
             installations_list = await Installation.async_get_installations(
@@ -156,6 +160,9 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 _LOGGER.warning("Data update failed due to auth error; refreshing token and retrying once: %s", ex)
                 try:
                     await self._refresh_token(force=True)
+                    if self.auth_client is None:
+                        _LOGGER.error("Auth client became None after token refresh; aborting retry")
+                        raise UpdateFailed("Auth client missing after refresh")
                     # Add small delay between refresh and retry to avoid rapid re-failures
                     await asyncio.sleep(RETRY_DELAY_SECONDS)
                     # Retry once

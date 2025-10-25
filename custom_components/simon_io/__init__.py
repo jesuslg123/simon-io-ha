@@ -8,6 +8,7 @@ from typing import Any
 
 import aiohttp
 from aiosimon_io import Installation, SimonAuth
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 # Patch the Device class to add async_stop method
 from .device_extensions import patch_device_class
@@ -67,6 +68,8 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         - if it fails with a likely auth error (401/403/expired token), refresh tokens
         - retry the call once
         """
+        # Ensure we have an auth client and an open session before doing the action
+        await self._ensure_auth_client()
         # First, try normally
         try:
             return await func(*args, **kwargs)
@@ -185,9 +188,10 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Ensure we have a valid auth client with fresh tokens."""
         _LOGGER.info("Ensuring auth client is available")
         
-        if self.session is None:
-            _LOGGER.info("Creating new aiohttp session")
-            self.session = aiohttp.ClientSession()
+        # Ensure we have an open, Home Assistant–managed aiohttp session
+        if self.session is None or getattr(self.session, "closed", False):
+            _LOGGER.info("Acquiring Home Assistant managed aiohttp session")
+            self.session = async_get_clientsession(self.hass)
 
         # Create or recreate auth client
         if self.auth_client is None:
@@ -263,6 +267,14 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 import traceback
                 _LOGGER.error("Traceback: %s", traceback.format_exc())
                 raise ConfigEntryAuthFailed(f"Failed to create auth client: {ex}") from ex
+
+        # If we already had an auth client and the session became closed, update it
+        if self.auth_client is not None:
+            client_session = getattr(self.auth_client, "session", None)
+            if client_session is None or getattr(client_session, "closed", False):
+                _LOGGER.info("Auth client had a closed session; updating to a new HA-managed session")
+                self.session = async_get_clientsession(self.hass)
+                self.auth_client.session = self.session
 
         # After ensuring the client exists, optionally refresh if expiry is near
         token_expires_at = self.entry.data.get(CONF_TOKEN_EXPIRES_AT)
@@ -373,9 +385,8 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def async_unload(self) -> None:
         """Unload the coordinator."""
-        if self.session:
-            await self.session.close()
-            self.session = None
+        # Do not close the Home Assistant–managed session; just drop references
+        self.session = None
         self.auth_client = None
 
 

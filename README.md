@@ -4,7 +4,7 @@ A custom Home Assistant integration for Simon Series 270 smart home devices incl
 
 ---
 **Note:**
-- This integration was created with the assistance of AI (GitHub Copilot).
+- This integration was created by an AI (GitHub Copilot).
 - The author has only tested the integration with the shutter device. Other device types may not be fully tested or supported.
 - Feel free to collaborate with the project.
 ---
@@ -48,9 +48,23 @@ Before installing this integration, you must have:
 4. Go to **Settings** > **Devices & Services** > **Add Integration**
 5. Search for "Simon iO" and follow the setup wizard
 
-### Method 2: HACS Installation (Coming Soon)
+### Method 2: HACS Installation
 
-This integration will be available through HACS (Home Assistant Community Store) in the future.
+You can install this integration via HACS (Home Assistant Community Store) by adding this repository as a custom integration.
+
+1. In Home Assistant, go to **HACS** > **Integrations**
+2. Click the three dots (⋮) in the top-right and select **Custom repositories**
+3. In the dialog, paste the repository URL:
+  - `https://github.com/jesuslg123/simon-io-ha`
+  - Category: **Integration**
+4. Click **Add**, then search for **Simon iO** in HACS Integrations
+5. Click **Install** and wait for the download to finish
+6. Restart Home Assistant
+7. Go to **Settings** > **Devices & Services** > **Add Integration**, search for **Simon iO**, and complete the setup
+
+Notes:
+- Ensure your Home Assistant version meets the minimum requirement shown in HACS (this repo targets HA 2023.1+).
+- If you previously installed manually, remove the old `custom_components/simon_io` folder before installing via HACS to avoid duplicates.
 
 ## Configuration
 

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import asyncio
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -30,6 +31,7 @@ from .const import (
     PLATFORMS,
     TOKEN_REFRESH_BUFFER,
     UPDATE_INTERVAL,
+    RETRY_DELAY_SECONDS,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -79,6 +81,8 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
                 # Retry once
                 try:
+                    # Add small delay between refresh and retry to avoid rapid re-failures
+                    await asyncio.sleep(RETRY_DELAY_SECONDS)
                     return await func(*args, **kwargs)
                 except Exception as retry_ex:
                     _LOGGER.error("Action retry after token refresh failed: %s", retry_ex)
@@ -149,6 +153,8 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 _LOGGER.warning("Data update failed due to auth error; refreshing token and retrying once: %s", ex)
                 try:
                     await self._refresh_token(force=True)
+                    # Add small delay between refresh and retry to avoid rapid re-failures
+                    await asyncio.sleep(RETRY_DELAY_SECONDS)
                     # Retry once
                     installations_list = await Installation.async_get_installations(
                         self.auth_client, ttl=5

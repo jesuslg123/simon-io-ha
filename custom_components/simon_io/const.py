@@ -17,6 +17,7 @@ PLATFORMS = ["cover", "light", "switch"]
 # Update intervals
 UPDATE_INTERVAL = 30  # seconds
 TOKEN_REFRESH_BUFFER = 300  # seconds before expiry to refresh token
+RETRY_DELAY_SECONDS = 2  # delay between retries after refresh/errors
 
 # Device capabilities
 CAPABILITY_BRIGHTNESS = "brightness"

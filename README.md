@@ -2,6 +2,8 @@
 
 A custom Home Assistant integration for Simon Series 270 smart home devices including smart blinds, lights, and switches.
 
+![Simon iO Integration Demo](demo.png)
+
 ---
 **Note:**
 - This integration was created by an AI (GitHub Copilot).

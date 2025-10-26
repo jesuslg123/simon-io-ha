@@ -1,6 +1,6 @@
 """Constants for the Simon iO integration."""
 
-DOMAIN = "simon_io"
+DOMAIN = "simon"
 
 # Configuration keys
 CONF_CLIENT_ID = "client_id"

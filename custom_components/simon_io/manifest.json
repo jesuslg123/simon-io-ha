@@ -1,5 +1,5 @@
 {
-  "domain": "simon_io",
+  "domain": "simon",
   "name": "Simon iO",
   "codeowners": ["@jesus"],
   "config_flow": true,

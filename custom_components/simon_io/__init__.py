@@ -37,6 +37,7 @@ from .const import (
     RETRY_DELAY_SECONDS,
     LOCKOUT_COOLDOWN_CHECK_INTERVAL,
 )
+from .lockout import extract_lockout_seconds
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -110,19 +111,8 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return False
 
     def _extract_lockout_seconds(self, ex: Exception) -> int | None:
-        """Return lockout seconds if error indicates too many failed login attempts.
-
-        Expected message snippet:
-        "Too many failed login attempts, please try in 271579934 seconds."
-        """
-        msg = str(ex)
-        match = re.search(r"Too many failed login attempts, please try in (\d+) seconds", msg, re.IGNORECASE)
-        if match:
-            try:
-                return int(match.group(1))
-            except Exception:  # pragma: no cover - defensive
-                return None
-        return None
+        """Delegate to HA-independent helper for unit testing coverage."""
+        return extract_lockout_seconds(str(ex))
 
     def _get_lockout_until(self) -> datetime | None:
         """Read lockout deadline from config entry data, if present."""

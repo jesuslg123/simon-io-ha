@@ -38,6 +38,7 @@ from .const import (
     LOCKOUT_COOLDOWN_CHECK_INTERVAL,
 )
 from .lockout import extract_lockout_seconds
+from .notifications import SimonIoNotifications as Notifier
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -140,18 +141,7 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.update_interval = timedelta(seconds=LOCKOUT_COOLDOWN_CHECK_INTERVAL)
         self._lockout_notified = False  # reset so we log once on next cycle
         # Notify user via HA persistent notification
-        try:
-            self.hass.components.persistent_notification.async_create(
-                (
-                    "The Simon iO cloud has locked your account due to too many failed login attempts. "
-                    f"The integration will pause retries until {until.isoformat()} and then try again. "
-                    "If you recently changed your password, open the Simon iO integration and re-authenticate."
-                ),
-                title="Simon iO: Account locked",
-                notification_id=f"{DOMAIN}_lockout",
-            )
-        except Exception:  # pragma: no cover - best-effort notification
-            pass
+        Notifier.notify_lockout(self.hass, until)
 
     def trigger_fast_polling(self) -> None:
         """Trigger fast polling for a short duration after user action."""
@@ -340,6 +330,8 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     self.hass.config_entries.async_update_entry(self.entry, data=new_data)
                     self.update_interval = timedelta(seconds=UPDATE_INTERVAL)
                     self._lockout_notified = False
+                    # Dismiss any existing lockout notification
+                    Notifier.dismiss_lockout(self.hass)
 
             except ConfigEntryAuthFailed:
                 # Propagate reauth requests
@@ -509,8 +501,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER.info("Starting coordinator setup")
         await coordinator.async_setup()
         _LOGGER.info("Coordinator setup completed successfully")
+        # Clear any reauth-required notification if it exists
+        Notifier.dismiss_reauth_required(hass)
     except ConfigEntryAuthFailed as ex:
         _LOGGER.error("Authentication failed during setup: %s", ex)
+        # Notify the user that reauthentication is required
+        Notifier.notify_reauth_required(hass)
         # Trigger reauth flow
         hass.async_create_task(
             hass.config_entries.flow.async_init(

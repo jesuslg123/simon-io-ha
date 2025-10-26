@@ -46,6 +46,16 @@
       "reauth_successful": "Ré-authentification réussie"
     }
   },
+  "notification": {
+    "lockout": {
+      "title": "Simon iO : Compte verrouillé",
+      "message": "Le cloud Simon iO a verrouillé votre compte en raison de trop nombreuses tentatives de connexion échouées. L’intégration mettra en pause les tentatives jusqu’au {until}, puis réessaiera. Si vous avez récemment changé de mot de passe, ouvrez l’intégration Simon iO et ré-authentifiez-vous."
+    },
+    "reauth_required": {
+      "title": "Simon iO : Ré-authentification requise",
+      "message": "Les identifiants Simon iO sont manquants, invalides ou expirés. Ouvrez l’intégration Simon iO dans Home Assistant et ré-authentifiez-vous pour rétablir la connexion."
+    }
+  },
   "options": {
     "step": {
       "init": {

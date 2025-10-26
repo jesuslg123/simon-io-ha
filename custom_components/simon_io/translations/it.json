@@ -46,6 +46,16 @@
       "reauth_successful": "Riautenticazione riuscita"
     }
   },
+  "notification": {
+    "lockout": {
+      "title": "Simon iO: Account bloccato",
+      "message": "Il cloud Simon iO ha bloccato il tuo account a causa di troppi tentativi di accesso non riusciti. L’integrazione sospenderà i tentativi fino al {until} e poi riproverà. Se hai cambiato password di recente, apri l’integrazione Simon iO e riautenticati."
+    },
+    "reauth_required": {
+      "title": "Simon iO: Riautenticazione richiesta",
+      "message": "Le credenziali Simon iO sono mancanti, non valide o scadute. Apri l’integrazione Simon iO in Home Assistant e riautenticati per ripristinare la connettività."
+    }
+  },
   "options": {
     "step": {
       "init": {

@@ -58,4 +58,15 @@
       }
     }
   }
+  ,
+  "notification": {
+    "lockout": {
+      "title": "Simon iO: Account locked",
+      "message": "The Simon iO cloud has locked your account due to too many failed login attempts. The integration will pause retries until {until} and then try again. If you recently changed your password, open the Simon iO integration and re-authenticate."
+    },
+    "reauth_required": {
+      "title": "Simon iO: Reauthentication required",
+      "message": "Simon iO credentials are missing, invalid, or expired. Please open the Simon iO integration in Home Assistant and re-authenticate to restore connectivity."
+    }
+  }
 }

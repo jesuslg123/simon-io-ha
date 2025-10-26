@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import asyncio
+import re
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -27,12 +28,14 @@ from .const import (
     CONF_PASSWORD,
     CONF_REFRESH_TOKEN,
     CONF_TOKEN_EXPIRES_AT,
+    CONF_LOCKOUT_UNTIL,
     CONF_USERNAME,
     DOMAIN,
     PLATFORMS,
     TOKEN_REFRESH_BUFFER,
     UPDATE_INTERVAL,
     RETRY_DELAY_SECONDS,
+    LOCKOUT_COOLDOWN_CHECK_INTERVAL,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -52,6 +55,7 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._fast_poll_until: datetime | None = None
         self._fast_poll_interval = timedelta(seconds=2)
         self._fast_poll_duration = timedelta(seconds=10)
+        self._lockout_notified = False  # avoid spamming logs/notifications while locked out
 
         super().__init__(
             hass,
@@ -105,6 +109,60 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return True
         return False
 
+    def _extract_lockout_seconds(self, ex: Exception) -> int | None:
+        """Return lockout seconds if error indicates too many failed login attempts.
+
+        Expected message snippet:
+        "Too many failed login attempts, please try in 271579934 seconds."
+        """
+        msg = str(ex)
+        match = re.search(r"Too many failed login attempts, please try in (\d+) seconds", msg, re.IGNORECASE)
+        if match:
+            try:
+                return int(match.group(1))
+            except Exception:  # pragma: no cover - defensive
+                return None
+        return None
+
+    def _get_lockout_until(self) -> datetime | None:
+        """Read lockout deadline from config entry data, if present."""
+        raw = self.entry.data.get(CONF_LOCKOUT_UNTIL)
+        if not raw:
+            return None
+        try:
+            return datetime.fromisoformat(raw)
+        except Exception:  # pragma: no cover - defensive
+            return None
+
+    def _is_locked_out(self) -> bool:
+        until = self._get_lockout_until()
+        return bool(until and datetime.now() < until)
+
+    def _set_lockout_until(self, seconds: int) -> None:
+        """Persist lockout deadline to avoid hammering the API while locked out."""
+        # Cap absurdly large values to 30 days to keep a reasonable ceiling, but still respect server intent
+        capped_seconds = min(seconds, 30 * 24 * 3600)
+        until = datetime.now() + timedelta(seconds=capped_seconds)
+        new_data = {**self.entry.data, CONF_LOCKOUT_UNTIL: until.isoformat()}
+        if new_data != self.entry.data:
+            self.hass.config_entries.async_update_entry(self.entry, data=new_data)
+        # Slow down polling while locked out
+        self.update_interval = timedelta(seconds=LOCKOUT_COOLDOWN_CHECK_INTERVAL)
+        self._lockout_notified = False  # reset so we log once on next cycle
+        # Notify user via HA persistent notification
+        try:
+            self.hass.components.persistent_notification.async_create(
+                (
+                    "The Simon iO cloud has locked your account due to too many failed login attempts. "
+                    f"The integration will pause retries until {until.isoformat()} and then try again. "
+                    "If you recently changed your password, open the Simon iO integration and re-authenticate."
+                ),
+                title="Simon iO: Account locked",
+                notification_id=f"{DOMAIN}_lockout",
+            )
+        except Exception:  # pragma: no cover - best-effort notification
+            pass
+
     def trigger_fast_polling(self) -> None:
         """Trigger fast polling for a short duration after user action."""
         self._fast_poll_until = datetime.now() + self._fast_poll_duration
@@ -114,6 +172,15 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Update data via library."""
+        # If account is locked, don't attempt any network calls; just back off
+        if self._is_locked_out():
+            if not self._lockout_notified:
+                until = self._get_lockout_until()
+                _LOGGER.error("Account is locked due to too many failed attempts. Next check after: %s", until)
+                self._lockout_notified = True
+            # Ensure slow polling while locked
+            self.update_interval = timedelta(seconds=LOCKOUT_COOLDOWN_CHECK_INTERVAL)
+            raise UpdateFailed("Account locked by server due to too many failed login attempts; waiting before retrying")
         # Check if we should return to normal polling
         if self._fast_poll_until and datetime.now() >= self._fast_poll_until:
             self._fast_poll_until = None
@@ -157,6 +224,13 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except Exception as ex:
             # On auth error, attempt one refresh and retry the whole fetch
             if self._is_auth_error(ex):
+                # Detect lockout and persist to avoid tight retry loops
+                lock_secs = self._extract_lockout_seconds(ex)
+                if lock_secs:
+                    self._set_lockout_until(lock_secs)
+                    until = self._get_lockout_until()
+                    _LOGGER.error("Detected server lockout (%s seconds). Will pause attempts until: %s", lock_secs, until)
+                    raise UpdateFailed("Account locked by server; deferring retries") from ex
                 _LOGGER.warning("Data update failed due to auth error; refreshing token and retrying once: %s", ex)
                 try:
                     await self._refresh_token(force=True)
@@ -194,6 +268,11 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def _ensure_auth_client(self) -> None:
         """Ensure we have a valid auth client with fresh tokens."""
         _LOGGER.info("Ensuring auth client is available")
+        # Respect server-declared lockout, if any
+        if self._is_locked_out():
+            until = self._get_lockout_until()
+            self.update_interval = timedelta(seconds=LOCKOUT_COOLDOWN_CHECK_INTERVAL)
+            raise UpdateFailed(f"Account is locked by server until {until}")
         
         # Ensure we have an open, Home Assistant–managed aiohttp session
         if self.session is None or getattr(self.session, "closed", False):
@@ -264,11 +343,25 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 # Persist any potentially updated tokens (library may refresh on demand)
                 await self._persist_tokens()
                 _LOGGER.info("Auth client test successful, token obtained")
+                # Clear any previous lockout flag and restore normal polling
+                if CONF_LOCKOUT_UNTIL in self.entry.data:
+                    new_data = {**self.entry.data}
+                    new_data.pop(CONF_LOCKOUT_UNTIL, None)
+                    self.hass.config_entries.async_update_entry(self.entry, data=new_data)
+                    self.update_interval = timedelta(seconds=UPDATE_INTERVAL)
+                    self._lockout_notified = False
 
             except ConfigEntryAuthFailed:
                 # Propagate reauth requests
                 raise
             except Exception as ex:
+                # Detect lockout and persist so we don't keep hammering the API
+                lock_secs = self._extract_lockout_seconds(ex)
+                if lock_secs:
+                    self._set_lockout_until(lock_secs)
+                    until = self._get_lockout_until()
+                    _LOGGER.error("Authentication locked by server for %s seconds. Pausing until: %s", lock_secs, until)
+                    raise UpdateFailed("Server lockout in effect; skipping auth until cooldown expires") from ex
                 _LOGGER.error("Failed to create or test SimonAuth client: %s", ex)
                 _LOGGER.error("Exception type: %s", type(ex).__name__)
                 import traceback
@@ -327,6 +420,13 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             await self._persist_tokens()
             _LOGGER.info("Token refresh completed and persisted")
         except Exception as ex:
+            # Detect lockout and persist to avoid repeated attempts
+            lock_secs = self._extract_lockout_seconds(ex)
+            if lock_secs:
+                self._set_lockout_until(lock_secs)
+                until = self._get_lockout_until()
+                _LOGGER.error("Token refresh blocked by server lockout for %s seconds. Until: %s", lock_secs, until)
+                raise UpdateFailed("Server lockout during token refresh") from ex
             _LOGGER.error("Failed to refresh token: %s", ex)
             raise ConfigEntryAuthFailed("Token refresh failed") from ex
 

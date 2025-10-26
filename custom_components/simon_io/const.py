@@ -10,6 +10,7 @@ CONF_PASSWORD = "password"
 CONF_REFRESH_TOKEN = "refresh_token"
 CONF_ACCESS_TOKEN = "access_token"
 CONF_TOKEN_EXPIRES_AT = "token_expires_at"
+CONF_LOCKOUT_UNTIL = "lockout_until"
 
 # Platform names
 PLATFORMS = ["cover", "light", "switch"]
@@ -18,6 +19,7 @@ PLATFORMS = ["cover", "light", "switch"]
 UPDATE_INTERVAL = 30  # seconds
 TOKEN_REFRESH_BUFFER = 300  # seconds before expiry to refresh token
 RETRY_DELAY_SECONDS = 2  # delay between retries after refresh/errors
+LOCKOUT_COOLDOWN_CHECK_INTERVAL = 3600  # seconds to wait between checks while locked out
 
 # Device capabilities
 CAPABILITY_BRIGHTNESS = "brightness"

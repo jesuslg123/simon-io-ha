@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 import asyncio
 import re
+import random
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -34,6 +35,7 @@ from .const import (
     PLATFORMS,
     TOKEN_REFRESH_BUFFER,
     UPDATE_INTERVAL,
+    UPDATE_INTERVAL_JITTER,
     RETRY_DELAY_SECONDS,
     LOCKOUT_COOLDOWN_CHECK_INTERVAL,
 )
@@ -63,7 +65,7 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             hass,
             _LOGGER,
             name=DOMAIN,
-            update_interval=timedelta(seconds=UPDATE_INTERVAL),
+            update_interval=self._get_randomized_interval(UPDATE_INTERVAL),
         )
 
     async def async_call_with_auth_retry(self, func, *args, **kwargs):
@@ -143,6 +145,25 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # Notify user via HA persistent notification
         Notifier.notify_lockout(self.hass, until)
 
+    def _get_randomized_interval(self, base_seconds: int) -> timedelta:
+        """Get a randomized update interval by adding jitter to the base interval.
+        
+        Args:
+            base_seconds: Base interval in seconds
+            
+        Returns:
+            timedelta with random jitter applied (±UPDATE_INTERVAL_JITTER seconds)
+        """
+        jitter = random.uniform(-UPDATE_INTERVAL_JITTER, UPDATE_INTERVAL_JITTER)
+        randomized_seconds = base_seconds + jitter
+        _LOGGER.debug(
+            "Randomized interval: %.2f seconds (base: %d, jitter: %.2f)",
+            randomized_seconds,
+            base_seconds,
+            jitter,
+        )
+        return timedelta(seconds=randomized_seconds)
+
     def trigger_fast_polling(self) -> None:
         """Trigger fast polling for a short duration after user action."""
         self._fast_poll_until = datetime.now() + self._fast_poll_duration
@@ -164,7 +185,7 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # Check if we should return to normal polling
         if self._fast_poll_until and datetime.now() >= self._fast_poll_until:
             self._fast_poll_until = None
-            self.update_interval = timedelta(seconds=UPDATE_INTERVAL)
+            self.update_interval = self._get_randomized_interval(UPDATE_INTERVAL)
             _LOGGER.debug("Fast polling ended, returning to normal interval")
         
         _LOGGER.debug("Starting data update")
@@ -381,6 +402,10 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     await self._refresh_token()
             except (ValueError, TypeError) as ex:
                 _LOGGER.warning("Failed to parse token expiry time '%s': %s", token_expires_at, ex)
+        
+        # Apply randomization to the next update interval
+        if not self._fast_poll_until:
+            self.update_interval = self._get_randomized_interval(UPDATE_INTERVAL)
 
     def set_password(self, password: str) -> None:
         """Set the password for authentication."""

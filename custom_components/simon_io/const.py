@@ -16,7 +16,8 @@ CONF_LOCKOUT_UNTIL = "lockout_until"
 PLATFORMS = ["cover", "light", "switch"]
 
 # Update intervals
-UPDATE_INTERVAL = 30  # seconds
+UPDATE_INTERVAL = 36  # seconds
+UPDATE_INTERVAL_JITTER = 5  # seconds - random variation to add/subtract from UPDATE_INTERVAL
 TOKEN_REFRESH_BUFFER = 300  # seconds before expiry to refresh token
 RETRY_DELAY_SECONDS = 2  # delay between retries after refresh/errors
 LOCKOUT_COOLDOWN_CHECK_INTERVAL = 3600  # seconds to wait between checks while locked out

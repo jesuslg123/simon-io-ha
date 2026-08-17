@@ -138,7 +138,7 @@ class SimonConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         Home Assistant will call this to get the options flow instead of
         requiring a manual registration at runtime.
         """
-        return SimonOptionsFlowHandler(config_entry)
+        return SimonOptionsFlowHandler()
 
     def __init__(self) -> None:
         """Initialize the config flow."""
@@ -314,10 +314,6 @@ class SimonConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 class SimonOptionsFlowHandler(config_entries.OptionsFlow):
     """Handle options flow for Simon iO."""
-
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        """Initialize options flow."""
-        self.config_entry = config_entry
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None

@@ -399,7 +399,7 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
                 if expires_at and (datetime.now() + timedelta(seconds=TOKEN_REFRESH_BUFFER) >= expires_at):
                     _LOGGER.info("Token expires soon, refreshing")
-                    await self._refresh_token()
+                    await self._refresh_token(force=True)
             except (ValueError, TypeError) as ex:
                 _LOGGER.warning("Failed to parse token expiry time '%s': %s", token_expires_at, ex)
         

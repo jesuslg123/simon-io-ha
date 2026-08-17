@@ -558,22 +558,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _LOGGER.info("Setting up platforms: %s", PLATFORMS)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    # Register options flow
-    entry.async_on_unload(
-        entry.add_update_listener(async_reload_entry)
-    )
-    
     # Options flow is provided via the ConfigFlow's async_get_options_flow
     # implementation in config_flow.py, no runtime registration required.
 
     _LOGGER.info("Simon iO integration setup completed successfully")
     return True
-
-
-async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Reload config entry."""
-    await hass.config_entries.async_reload(entry.entry_id)
-
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""

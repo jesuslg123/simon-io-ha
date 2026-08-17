@@ -147,10 +147,10 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     def _get_randomized_interval(self, base_seconds: int) -> timedelta:
         """Get a randomized update interval by adding jitter to the base interval.
-        
+
         Args:
             base_seconds: Base interval in seconds
-            
+
         Returns:
             timedelta with random jitter applied (±UPDATE_INTERVAL_JITTER seconds)
         """
@@ -402,7 +402,7 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     await self._refresh_token(force=True)
             except (ValueError, TypeError) as ex:
                 _LOGGER.warning("Failed to parse token expiry time '%s': %s", token_expires_at, ex)
-        
+
         # Apply randomization to the next update interval
         if not self._fast_poll_until:
             self.update_interval = self._get_randomized_interval(UPDATE_INTERVAL)

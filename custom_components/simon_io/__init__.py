@@ -40,6 +40,7 @@ from .const import (
     LOCKOUT_COOLDOWN_CHECK_INTERVAL,
 )
 from .lockout import extract_lockout_seconds
+from .auth_helpers import async_refresh_token
 from .notifications import SimonIoNotifications as Notifier
 
 _LOGGER = logging.getLogger(__name__)
@@ -385,7 +386,8 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 self.session = async_get_clientsession(self.hass)
                 self.auth_client.session = self.session
 
-        # After ensuring the client exists, optionally refresh if expiry is near
+        # The library already subtracts a safety margin from the server expiry.
+        # Refresh once that adjusted expiry is reached.
         token_expires_at = self.entry.data.get(CONF_TOKEN_EXPIRES_AT)
         _LOGGER.debug("Token expiry data: %s (type: %s)", token_expires_at, type(token_expires_at))
         if token_expires_at:
@@ -398,8 +400,8 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     expires_at = None
 
                 if expires_at and (datetime.now() + timedelta(seconds=TOKEN_REFRESH_BUFFER) >= expires_at):
-                    _LOGGER.info("Token expires soon, refreshing")
-                    await self._refresh_token(force=True)
+                    _LOGGER.info("Token expired, refreshing")
+                    await self._refresh_token()
             except (ValueError, TypeError) as ex:
                 _LOGGER.warning("Failed to parse token expiry time '%s': %s", token_expires_at, ex)
 
@@ -419,17 +421,15 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def _refresh_token(self, force: bool = False) -> None:
         """Refresh the access token using SimonAuth and persist it to the entry.
 
-        If 'force' is True, we clear the in-memory access_token first to force a refresh.
+        Forced refreshes use the library's refresh-token grant directly. Clearing
+        the access token would make SimonAuth fall back to password authentication.
         """
         if not self.auth_client:
             await self._ensure_auth_client()
 
         try:
-            if force and hasattr(self.auth_client, "access_token"):
-                setattr(self.auth_client, "access_token", None)
-
             _LOGGER.debug("Requesting (re)fresh access token from SimonAuth")
-            await self.auth_client.async_get_access_token()
+            await async_refresh_token(self.auth_client, force=force)
             await self._persist_tokens()
             _LOGGER.info("Token refresh completed and persisted")
         except Exception as ex:

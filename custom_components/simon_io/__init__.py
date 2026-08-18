@@ -38,7 +38,9 @@ from .const import (
     UPDATE_INTERVAL_JITTER,
     RETRY_DELAY_SECONDS,
     LOCKOUT_COOLDOWN_CHECK_INTERVAL,
+    AUTH_FAILURE_COOLDOWN_SECONDS,
 )
+from .auth_helpers import async_refresh_token, is_auth_response_error
 from .lockout import extract_lockout_seconds
 from .notifications import SimonIoNotifications as Notifier
 
@@ -145,6 +147,15 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # Notify user via HA persistent notification
         Notifier.notify_lockout(self.hass, until)
 
+    def _clear_lockout(self) -> None:
+        """Clear a completed authentication cooldown and its notification."""
+        if CONF_LOCKOUT_UNTIL in self.entry.data:
+            new_data = {**self.entry.data}
+            new_data.pop(CONF_LOCKOUT_UNTIL, None)
+            self.hass.config_entries.async_update_entry(self.entry, data=new_data)
+        self._lockout_notified = False
+        Notifier.dismiss_lockout(self.hass)
+
     def _get_randomized_interval(self, base_seconds: int) -> timedelta:
         """Get a randomized update interval by adding jitter to the base interval.
 
@@ -222,6 +233,8 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 "devices": all_devices,
             }
 
+        except ConfigEntryAuthFailed:
+            raise
         except Exception as ex:
             # On auth error, attempt one refresh and retry the whole fetch
             if self._is_auth_error(ex):
@@ -346,13 +359,8 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 _LOGGER.debug("Auth client test successful, token obtained")
                 # Clear any previous lockout flag and restore normal polling
                 if CONF_LOCKOUT_UNTIL in self.entry.data:
-                    new_data = {**self.entry.data}
-                    new_data.pop(CONF_LOCKOUT_UNTIL, None)
-                    self.hass.config_entries.async_update_entry(self.entry, data=new_data)
+                    self._clear_lockout()
                     self.update_interval = timedelta(seconds=UPDATE_INTERVAL)
-                    self._lockout_notified = False
-                    # Dismiss any existing lockout notification
-                    Notifier.dismiss_lockout(self.hass)
 
             except ConfigEntryAuthFailed:
                 # Propagate reauth requests
@@ -385,7 +393,8 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 self.session = async_get_clientsession(self.hass)
                 self.auth_client.session = self.session
 
-        # After ensuring the client exists, optionally refresh if expiry is near
+        # The library already subtracts a safety margin from the server expiry.
+        # Refresh once that adjusted expiry is reached.
         token_expires_at = self.entry.data.get(CONF_TOKEN_EXPIRES_AT)
         _LOGGER.debug("Token expiry data: %s (type: %s)", token_expires_at, type(token_expires_at))
         if token_expires_at:
@@ -398,8 +407,8 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     expires_at = None
 
                 if expires_at and (datetime.now() + timedelta(seconds=TOKEN_REFRESH_BUFFER) >= expires_at):
-                    _LOGGER.info("Token expires soon, refreshing")
-                    await self._refresh_token(force=True)
+                    _LOGGER.info("Token expired, refreshing")
+                    await self._refresh_token()
             except (ValueError, TypeError) as ex:
                 _LOGGER.warning("Failed to parse token expiry time '%s': %s", token_expires_at, ex)
 
@@ -419,27 +428,32 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def _refresh_token(self, force: bool = False) -> None:
         """Refresh the access token using SimonAuth and persist it to the entry.
 
-        If 'force' is True, we clear the in-memory access_token first to force a refresh.
+        Forced refreshes use the library's refresh-token grant directly. Clearing
+        the access token would make SimonAuth fall back to password authentication.
         """
         if not self.auth_client:
             await self._ensure_auth_client()
 
         try:
-            if force and hasattr(self.auth_client, "access_token"):
-                setattr(self.auth_client, "access_token", None)
-
             _LOGGER.debug("Requesting (re)fresh access token from SimonAuth")
-            await self.auth_client.async_get_access_token()
+            await async_refresh_token(self.auth_client, force=force)
             await self._persist_tokens()
+            self._clear_lockout()
             _LOGGER.info("Token refresh completed and persisted")
         except Exception as ex:
             # Detect lockout and persist to avoid repeated attempts
             lock_secs = self._extract_lockout_seconds(ex)
+            if lock_secs is None and is_auth_response_error(ex):
+                lock_secs = AUTH_FAILURE_COOLDOWN_SECONDS
             if lock_secs:
                 self._set_lockout_until(lock_secs)
                 until = self._get_lockout_until()
-                _LOGGER.error("Token refresh blocked by server lockout for %s seconds. Until: %s", lock_secs, until)
-                raise UpdateFailed("Server lockout during token refresh") from ex
+                _LOGGER.error(
+                    "Token refresh failed; pausing authentication for %s seconds until %s",
+                    lock_secs,
+                    until,
+                )
+                raise UpdateFailed("Authentication paused after token refresh failure") from ex
             _LOGGER.error("Failed to refresh token: %s", ex)
             raise ConfigEntryAuthFailed("Token refresh failed") from ex
 

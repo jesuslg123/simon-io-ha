@@ -18,9 +18,10 @@ PLATFORMS = ["cover", "light", "switch"]
 # Update intervals
 UPDATE_INTERVAL = 36  # seconds
 UPDATE_INTERVAL_JITTER = 5  # seconds - random variation to add/subtract from UPDATE_INTERVAL
-TOKEN_REFRESH_BUFFER = 300  # seconds before expiry to refresh token
+TOKEN_REFRESH_BUFFER = 0  # aiosimon_io already applies its own 500-second safety margin
 RETRY_DELAY_SECONDS = 2  # delay between retries after refresh/errors
 LOCKOUT_COOLDOWN_CHECK_INTERVAL = 3600  # seconds to wait between checks while locked out
+AUTH_FAILURE_COOLDOWN_SECONDS = 3600  # minimum pause after a failed auth request
 
 # Device capabilities
 CAPABILITY_BRIGHTNESS = "brightness"

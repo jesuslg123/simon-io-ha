@@ -18,6 +18,7 @@ assert _SPEC and _SPEC.loader
 _SPEC.loader.exec_module(_MODULE)  # type: ignore[attr-defined]
 
 async_refresh_token = _MODULE.async_refresh_token
+is_auth_response_error = _MODULE.is_auth_response_error
 
 
 class FakeAuthClient:
@@ -53,6 +54,20 @@ class TestAuthHelpers(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(client.get_calls, 1)
         self.assertEqual(client.refresh_calls, 0)
+
+
+class TestAuthResponseErrors(unittest.TestCase):
+    def test_authentication_statuses_are_detected(self):
+        for status in (400, 401, 403):
+            with self.subTest(status=status):
+                error = Exception("authentication failed")
+                error.status = status
+                self.assertTrue(is_auth_response_error(error))
+
+    def test_non_authentication_status_is_ignored(self):
+        error = Exception("server error")
+        error.status = 500
+        self.assertFalse(is_auth_response_error(error))
 
 
 if __name__ == "__main__":

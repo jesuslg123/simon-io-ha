@@ -4,6 +4,14 @@ from __future__ import annotations
 from typing import Any
 
 
+def is_auth_response_error(error: Exception) -> bool:
+    """Return whether an exception represents an authentication HTTP failure."""
+    status = getattr(error, "status", None) or getattr(
+        getattr(error, "response", None), "status", None
+    )
+    return status in (400, 401, 403)
+
+
 async def async_refresh_token(auth_client: Any, *, force: bool) -> None:
     """Refresh through the correct library flow without clearing the token.
 

@@ -38,9 +38,10 @@ from .const import (
     UPDATE_INTERVAL_JITTER,
     RETRY_DELAY_SECONDS,
     LOCKOUT_COOLDOWN_CHECK_INTERVAL,
+    AUTH_FAILURE_COOLDOWN_SECONDS,
 )
+from .auth_helpers import async_refresh_token, is_auth_response_error
 from .lockout import extract_lockout_seconds
-from .auth_helpers import async_refresh_token
 from .notifications import SimonIoNotifications as Notifier
 
 _LOGGER = logging.getLogger(__name__)
@@ -146,6 +147,15 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # Notify user via HA persistent notification
         Notifier.notify_lockout(self.hass, until)
 
+    def _clear_lockout(self) -> None:
+        """Clear a completed authentication cooldown and its notification."""
+        if CONF_LOCKOUT_UNTIL in self.entry.data:
+            new_data = {**self.entry.data}
+            new_data.pop(CONF_LOCKOUT_UNTIL, None)
+            self.hass.config_entries.async_update_entry(self.entry, data=new_data)
+        self._lockout_notified = False
+        Notifier.dismiss_lockout(self.hass)
+
     def _get_randomized_interval(self, base_seconds: int) -> timedelta:
         """Get a randomized update interval by adding jitter to the base interval.
 
@@ -223,6 +233,8 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 "devices": all_devices,
             }
 
+        except ConfigEntryAuthFailed:
+            raise
         except Exception as ex:
             # On auth error, attempt one refresh and retry the whole fetch
             if self._is_auth_error(ex):
@@ -347,13 +359,8 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 _LOGGER.debug("Auth client test successful, token obtained")
                 # Clear any previous lockout flag and restore normal polling
                 if CONF_LOCKOUT_UNTIL in self.entry.data:
-                    new_data = {**self.entry.data}
-                    new_data.pop(CONF_LOCKOUT_UNTIL, None)
-                    self.hass.config_entries.async_update_entry(self.entry, data=new_data)
+                    self._clear_lockout()
                     self.update_interval = timedelta(seconds=UPDATE_INTERVAL)
-                    self._lockout_notified = False
-                    # Dismiss any existing lockout notification
-                    Notifier.dismiss_lockout(self.hass)
 
             except ConfigEntryAuthFailed:
                 # Propagate reauth requests
@@ -431,15 +438,22 @@ class SimonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _LOGGER.debug("Requesting (re)fresh access token from SimonAuth")
             await async_refresh_token(self.auth_client, force=force)
             await self._persist_tokens()
+            self._clear_lockout()
             _LOGGER.info("Token refresh completed and persisted")
         except Exception as ex:
             # Detect lockout and persist to avoid repeated attempts
             lock_secs = self._extract_lockout_seconds(ex)
+            if lock_secs is None and is_auth_response_error(ex):
+                lock_secs = AUTH_FAILURE_COOLDOWN_SECONDS
             if lock_secs:
                 self._set_lockout_until(lock_secs)
                 until = self._get_lockout_until()
-                _LOGGER.error("Token refresh blocked by server lockout for %s seconds. Until: %s", lock_secs, until)
-                raise UpdateFailed("Server lockout during token refresh") from ex
+                _LOGGER.error(
+                    "Token refresh failed; pausing authentication for %s seconds until %s",
+                    lock_secs,
+                    until,
+                )
+                raise UpdateFailed("Authentication paused after token refresh failure") from ex
             _LOGGER.error("Failed to refresh token: %s", ex)
             raise ConfigEntryAuthFailed("Token refresh failed") from ex
 
